@@ -1,0 +1,78 @@
+rm(list=ls());
+
+mymodel = 'poisson'
+
+
+calculate.s.m.v2 = function( lifespan, bin.size=10 ){
+   my.data = sort( lifespan[!is.na(lifespan)] );
+   my.max = max(my.data)
+   my.interval.size = bin.size
+   deathFreq = c(NA, NA)
+   for ( i in 1:round(length(my.data) / my.interval.size))  {
+     sub = my.data[ ((i-1)* my.interval.size + 1) : (i* my.interval.size) ]
+     deathFreq = rbind( deathFreq, c(mean(sub, na.rm=T), my.interval.size) )
+   }
+   deathFreq = data.frame(deathFreq)
+   deathFreq = deathFreq[-1,]
+   deathCumulative = deathFreq
+   for( i in 2:length(deathFreq[,1])) {
+        deathCumulative[i, 2] = deathCumulative[i-1, 2] + deathCumulative[i, 2]                
+   }
+   tot = length(my.data)
+   s = 1 - deathCumulative[,2]/tot
+   currentLive  = tot - deathCumulative[,2]        
+   m =  deathFreq[,2] / currentLive; 
+
+   ret = data.frame( cbind(s, m, deathFreq[,1]) );
+   names(ret) = c("s", "m", "t");
+   ret;
+}
+
+lifespan = rnorm(1000, mean=100, sd=10)
+ret = calculate.s.m.v2(lifespan)
+
+
+m = 15;
+Npop = 1E4;
+mymean = 0.1; 
+mysds = c(0.1, 0.3, 0.5, 1, 1.3, 1.5);
+
+for ( mysd in mysds) {
+  SystemAges = numeric(Npop); 
+  BlockAges = numeric(m)
+ 
+ for( i in 1: Npop){
+ 
+   n = rpois(m, 600);
+   write.csv(n, "Gompertz.csv", row.names=F)
+   Gompertz = read.csv("Gompertz.csv")
+
+   if (mymodel == 'Fixed#Elements' ) {
+     n = rep( 600, m )
+   }
+   
+   for( j in 1:m) {
+
+     mu.vec = rep(0.005, n[j])
+     
+     ElementAges =  rexp(n[j], rate=mu.vec);    
+     
+     BlockAges[j] = round( max(ElementAges), 1 );  
+  }
+  SystemAges[i] = min(BlockAges)  
+ }
+  
+write.csv(n, "Gompertz.csv", row.names=F)
+Gompertz = read.csv("Gompertz.csv")
+  
+tb = calculate.s.m.v2( SystemAges )
+
+sub = tb[ tb$s > 0.25, ]
+
+
+sub$m[sub$m==0] = NA;  #remove zero for log operations
+plot (log(sub$m) ~ sub$t, main = paste(mymodel, " sd=", mysd) )
+
+plot( sub$s ~ sub$t, main=paste(mymodel, " sd=", mysd) )
+  
+} #sd loop
